@@ -32,10 +32,29 @@
 #ifndef WIRECTL_UART1_RX
 #define WIRECTL_UART1_RX 5
 #endif
+#ifndef WIRECTL_ENCODER1_A
+#define WIRECTL_ENCODER1_A 2
+#endif
+#ifndef WIRECTL_ENCODER1_B
+#define WIRECTL_ENCODER1_B 3
+#endif
+#ifndef WIRECTL_ENCODER1_BUTTON
+#define WIRECTL_ENCODER1_BUTTON 6
+#endif
+#ifndef WIRECTL_ENCODER2_A
+#define WIRECTL_ENCODER2_A 7
+#endif
+#ifndef WIRECTL_ENCODER2_B
+#define WIRECTL_ENCODER2_B 8
+#endif
+#ifndef WIRECTL_ENCODER2_BUTTON
+#define WIRECTL_ENCODER2_BUTTON 9
+#endif
 #define WIRECTL_VOLTAGE_MIN 1u
 #define WIRECTL_VOLTAGE_MAX 2000u
 #define WIRECTL_CURRENT_MIN 5u
 #define WIRECTL_CURRENT_MAX 3000u
+#define WIRECTL_ENCODER_STEP 100u
 #define LED1 28
 #define LED2 27
 #define LED3 26
@@ -51,6 +70,15 @@ typedef struct {
     uint8_t output_en[2];
     bool locked[2];
 } scpi_registers_t;
+
+enum op_mode {
+	MODE_STARTUP = 1,
+	MODE_NET_INIT_START = 2,
+	MODE_NET_INIT_OK = 3,
+	MODE_NET_INIT_NOK = 4,
+	MODE_OPERATION_WITH_NET = 5,
+	MODE_OPERATION_WITHOUT_NET = 6 
+};
 
 enum intercore_command { 
 	CORE1_SET_INT1_VOLTAGE_LIM = 1, //Core0 sends Core1 voltage limit on INT1
@@ -98,4 +126,5 @@ enum intercore_command {
 void intercore_send(enum intercore_command command, uint32_t value);
 bool intercore_core0_try_pop(uint32_t *message);
 void run_scpi_tcp_server(void);
+void switch_op_mode(enum op_mode newmode);
 #endif

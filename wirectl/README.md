@@ -11,10 +11,17 @@ Default GPIO assignment:
 | SPI1 SCK / TX / CS | 10 / 11 / 13 |
 | UART0 TX / RX | 0 / 1 |
 | UART1 TX / RX | 4 / 5 |
+| Encoder 1 A / B / button | 2 / 3 / 6 |
+| Encoder 2 A / B / button | 7 / 8 / 9 |
 
 Each pin can be overridden independently at compile time, for example
 `-DWIRECTL_SPI0_CS=16`. Both UARTs use 115200 baud, 8 data bits, no parity,
 and one stop bit.
+
+Encoder 1 changes interface 1's voltage limit in steps of 100. Encoder 2
+changes interface 1's current limit in steps of 100. Both limits are clamped
+to their SCPI ranges. Encoder inputs and buttons use internal pull-ups; button
+interrupt handlers are present but intentionally empty.
 
 Supported commands:
 
