@@ -3,6 +3,20 @@
 #include "hardware/spi.h"
 #include "led14seg.h"
 
+volatile bool blink_flag = true;
+static struct repeating_timer blink_timer;
+
+static bool blink_timer_callback(__unused struct repeating_timer *timer) {
+    blink_flag = !blink_flag;
+    return true;
+}
+
+bool led14seg_blink_timer_init(void) {
+    blink_flag = true;
+    return add_repeating_timer_ms(-500, blink_timer_callback, NULL,
+                                  &blink_timer);
+}
+
 /** Convert one supported ASCII character to a segment bitmap. */
 static uint16_t bitmap(char ch) {
     unsigned c = (unsigned char)ch;
@@ -54,6 +68,7 @@ void led14seg_init(led14seg_display_t *display, spi_inst_t *spi,
     display->spi = spi;
     display->cs_pin = cs;
     display->dot_bitmap = 0;
+    display->blink_bitmap = 0;
     display->scan_position = 0;
     for (unsigned i = 0; i < LED14SEG_CHARACTER_COUNT; ++i)
         display->display_buffer[i] = bitmap(' ');
@@ -70,12 +85,36 @@ void led14seg_set_current(led14seg_display_t *display, uint16_t value) {
 
 void redraw_display(led14seg_display_t *display){
 	uint8_t pos = 0x80;
-    for (uint8_t s = 0; s < 8; s++){
-    	send_char(display->spi, display->cs_pin,
-        	display->display_buffer[s],
-			((display->dot_bitmap >> s) & 0x1),
+	bool phase = blink_flag;
+    for (uint8_t s = 0; s < LED14SEG_CHARACTER_COUNT; s++){
+		bool blink_enabled = ((display->blink_bitmap >> s) & 0x1u) != 0u;
+		bool show_symbol = !blink_enabled || phase;
+     send_char(display->spi, display->cs_pin,
+			show_symbol ? display->display_buffer[s] : SPACE_SYM,
+			show_symbol && (((display->dot_bitmap >> s) & 0x1u) != 0u),
 			pos >> s);
     }
+}
+
+  /** @brief Enables blinking for specific symbols
+  Every bit in the bitmask represents symbol position.
+  If blink_on param is True, each '1' bit in the bitmask represents
+  blinking symbol and '0' - no change, if blink_on is False each '1' bit
+  represents liting symbol and '0' - no change
+  
+  @param[inout] *display led14seg_display_t Display object
+  @param[in] blink_on bool blink Is bitmask represents enable blinking or disable
+  @param[in] blink_bitmask uint8_t modification bitmask  
+*/
+void blink_segment(led14seg_display_t *display, bool blink_on, uint8_t blink_bitmask){
+	if (display == NULL) {
+		return;
+	}
+	if (blink_on) {
+		display->blink_bitmap |= blink_bitmask;
+	} else {
+		display->blink_bitmap &= (uint8_t)~blink_bitmask;
+	}
 }
 
   /** @brief Converts a string to the bitmap array for LED symbols

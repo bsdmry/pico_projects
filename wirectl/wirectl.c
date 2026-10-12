@@ -257,6 +257,7 @@ static void core1_main(void) {
                   WIRECTL_SPI1_CS);
     led14seg_set_voltage(&displays[0], 0);
     led14seg_set_current(&displays[1], 0);
+    led14seg_blink_timer_init();
     encoders_init();
     multicore_fifo_clear_irq();
     irq_set_exclusive_handler(SIO_FIFO_IRQ_NUM(1), core1_sio_irq);

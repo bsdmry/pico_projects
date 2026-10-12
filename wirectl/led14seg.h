@@ -47,14 +47,21 @@ typedef struct {
     uint cs_pin;
     uint16_t display_buffer[LED14SEG_CHARACTER_COUNT];
     uint8_t dot_bitmap;
+    uint8_t blink_bitmap;
     uint8_t scan_position;
 } led14seg_display_t;
 
+/* Shared blink phase toggled by the 500 ms repeating timer callback. */
+extern volatile bool blink_flag;
+
 void led14seg_init(led14seg_display_t *display, spi_inst_t *spi,
                    uint sck_pin, uint tx_pin, uint cs_pin);
+bool led14seg_blink_timer_init(void);
 void led14seg_set_voltage(led14seg_display_t *display, uint16_t value);
 void led14seg_set_current(led14seg_display_t *display, uint16_t value);
 void redraw_display(led14seg_display_t *display);
+void blink_segment(led14seg_display_t *display, bool blink_on,
+                   uint8_t blink_bitmask);
 uint8_t normalize_range(uint8_t *start_pos, uint8_t *stop_pos);
 void fill_range(led14seg_display_t *display, uint8_t start_pos, uint8_t stop_pos, uint16_t bitmap);
 void write_error_field(led14seg_display_t *display, uint8_t start_pos, uint8_t stop_pos);
