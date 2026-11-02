@@ -2,129 +2,57 @@
 #define WIRECTL_H
 #include <stdbool.h>
 #include <stdint.h>
-#ifndef WIRECTL_SPI0_SCK
-#define WIRECTL_SPI0_SCK 18
-#endif
-#ifndef WIRECTL_SPI0_TX
-#define WIRECTL_SPI0_TX 19
-#endif
-#ifndef WIRECTL_SPI0_CS
-#define WIRECTL_SPI0_CS 17
-#endif
-#ifndef WIRECTL_SPI1_SCK
-#define WIRECTL_SPI1_SCK 10
-#endif
-#ifndef WIRECTL_SPI1_TX
-#define WIRECTL_SPI1_TX 11
-#endif
-#ifndef WIRECTL_SPI1_CS
-#define WIRECTL_SPI1_CS 13
-#endif
-#ifndef WIRECTL_UART0_TX
 #define WIRECTL_UART0_TX 0
-#endif
-#ifndef WIRECTL_UART0_RX
 #define WIRECTL_UART0_RX 1
-#endif
-#ifndef WIRECTL_UART1_TX
+#define WIRECTL_ENC_V1_A 2
+#define WIRECTL_ENC_V1_B 3
 #define WIRECTL_UART1_TX 4
-#endif
-#ifndef WIRECTL_UART1_RX
 #define WIRECTL_UART1_RX 5
-#endif
-#ifndef WIRECTL_ENCODER1_A
-#define WIRECTL_ENCODER1_A 2
-#endif
-#ifndef WIRECTL_ENCODER1_B
-#define WIRECTL_ENCODER1_B 3
-#endif
-#ifndef WIRECTL_ENCODER1_BUTTON
-#define WIRECTL_ENCODER1_BUTTON 6
-#endif
-#ifndef WIRECTL_ENCODER2_A
-#define WIRECTL_ENCODER2_A 7
-#endif
-#ifndef WIRECTL_ENCODER2_B
-#define WIRECTL_ENCODER2_B 8
-#endif
-#ifndef WIRECTL_ENCODER2_BUTTON
-#define WIRECTL_ENCODER2_BUTTON 9
-#endif
-#define WIRECTL_VOLTAGE_MIN 1u
-#define WIRECTL_VOLTAGE_MAX 2000u
-#define WIRECTL_CURRENT_MIN 5u
-#define WIRECTL_CURRENT_MAX 3000u
-#define WIRECTL_ENCODER_STEP 100u
-#define LED1 28
-#define LED2 27
-#define LED3 26
-#define LED4 22
-#define CORE1_MESSAGE(command, value) ((((uint32_t)(command)) << 24) | ((value) & 0xffffffu))
-
+#define WIRECTL_ENC_V1_SW 6
+#define WIRECTL_ENC_V2_A 7
+#define WIRECTL_ENC_V2_B 8
+#define WIRECTL_ENC_V2_SW 9
+#define WIRECTL_ENC_I1_A 10
+#define WIRECTL_ENC_I1_B 11
+#define WIRECTL_ENC_I1_SW 12
+#define WIRECTL_ENC_I2_A 13
+#define WIRECTL_ENC_I2_B 14
+#define WIRECTL_ENC_I2_SW 15
+#define WIRECTL_SEG1_CS 16
+#define WIRECTL_SEG2_CS 17
+#define WIRECTL_SPI_SCK 18
+#define WIRECTL_SPI_TX 19
+#define WIRECTL_LED_CS 20
+#define WIRECTL_BTN_PWR1 21
+#define WIRECTL_BTN_PWR2 22
+#define WIRECTL_BTN_WIFI 26
+#define WIRECTL_VOLTAGE_MIN 0u
+#define WIRECTL_VOLTAGE_MAX 60000u
+#define WIRECTL_CURRENT_MIN 0u
+#define WIRECTL_CURRENT_MAX 5000u
+#define CORE_MESSAGE(c,v) ((((uint32_t)(c))<<24)|((v)&0xffffffu))
 typedef struct {
-    uint16_t voltage[2];
-    uint16_t voltage_lim[2];
-    uint16_t current[2];
-    uint16_t current_lim[2];
-    uint8_t current_lim_trg[2];
-    uint8_t output_en[2];
-    bool locked[2];
+ uint16_t voltage[2],voltage_lim[2],current[2],current_lim[2];
+ uint8_t current_lim_trg[2],output_en[2];
+ bool locked[2],remote[2];
 } scpi_registers_t;
-
-enum op_mode {
-	MODE_STARTUP = 1,
-	MODE_NET_INIT_START = 2,
-	MODE_NET_INIT_OK = 3,
-	MODE_NET_INIT_NOK = 4,
-	MODE_OPERATION_WITH_NET = 5,
-	MODE_OPERATION_WITHOUT_NET = 6 
+enum intercore_command {
+ CORE1_SET_INT1_VOLTAGE_LIM=1,CORE1_GET_INT1_VOLTAGE_LIM,CORE0_DAT_INT1_VOLTAGE_LIM,
+ CORE1_SET_INT2_VOLTAGE_LIM,CORE1_GET_INT2_VOLTAGE_LIM,CORE0_DAT_INT2_VOLTAGE_LIM,
+ CORE1_SET_INT1_CURRENT_LIM,CORE1_GET_INT1_CURRENT_LIM,CORE0_DAT_INT1_CURRENT_LIM,
+ CORE1_SET_INT2_CURRENT_LIM,CORE1_GET_INT2_CURRENT_LIM,CORE0_DAT_INT2_CURRENT_LIM,
+ CORE1_SET_INT1_OUTPUT,CORE1_GET_INT1_OUTPUT,CORE0_DAT_INT1_OUTPUT,
+ CORE1_SET_INT2_OUTPUT,CORE1_GET_INT2_OUTPUT,CORE0_DAT_INT2_OUTPUT,
+ CORE1_SET_INT1_LOCK,CORE1_GET_INT1_LOCK,CORE0_DAT_INT1_LOCK,
+ CORE1_SET_INT2_LOCK,CORE1_GET_INT2_LOCK,CORE0_DAT_INT2_LOCK,
+ CORE1_SET_INT1_REMOTE,CORE1_GET_INT1_REMOTE,CORE0_DAT_INT1_REMOTE,
+ CORE1_SET_INT2_REMOTE,CORE1_GET_INT2_REMOTE,CORE0_DAT_INT2_REMOTE,
+ CORE0_ERR_INTERFACE_LOCKED,CORE0_ERR_PSU_COMM,CORE1_WIFI_STATE,CORE0_WIFI_TOGGLE
 };
-
-enum intercore_command { 
-	CORE1_SET_INT1_VOLTAGE_LIM = 1, //Core0 sends Core1 voltage limit on INT1
-	CORE1_GET_INT1_VOLTAGE_LIM = 2, //Core0 requests Core1 voltage limit on INT1
-	CORE0_DAT_INT1_VOLTAGE_LIM = 3, //Core1 responds Core0 voltage limit on INT1
-	CORE1_GET_INT1_VOLTAGE = 4, 	//Core0 requests Core1 actual voltage on INT1
-	CORE0_DAT_INT1_VOLTAGE = 5, 	//Core1 responds Core0 actual voltage on INT1
-
-	CORE1_SET_INT2_VOLTAGE_LIM = 6,	//Core0 sends Core1 voltage limit on INT2
-	CORE1_GET_INT2_VOLTAGE_LIM = 7, //Core0 requests Core1 voltage limit on INT2
-	CORE0_DAT_INT2_VOLTAGE_LIM = 8, //Core1 responds Core0 voltage limit on INT2
-	CORE1_GET_INT2_VOLTAGE = 9, 	//Core0 requests Core1 actual voltage on INT2
-	CORE0_DAT_INT2_VOLTAGE = 10, 	//Core1 responds Core0 actual voltage on INT2
-
-	CORE1_SET_INT1_CURRENT_LIM = 11,//Core0 sends Core1 current limit on INT1 
-	CORE1_GET_INT1_CURRENT_LIM = 12,//Core0 requests Core1 current limit on INT1 
-	CORE0_DAT_INT1_CURRENT_LIM = 13,//Core1 responds Core0 current limit on INT1 
-	CORE1_GET_INT1_CURRENT = 14, 	//Core0 requests Core1 actual current on INT1
-	CORE0_DAT_INT1_CURRENT = 15, 	//Core1 responds Core0 actual current on INT1
-
-	CORE1_SET_INT2_CURRENT_LIM = 16,//Core0 sends Core1 current limit on INT2 
-	CORE1_GET_INT2_CURRENT_LIM = 17,//Core0 requests Core1 current limit on INT2
-	CORE0_DAT_INT2_CURRENT_LIM = 18,//Core1 responds Core0 current limit on INT2
-	CORE1_GET_INT2_CURRENT = 19, 	//Core0 requests Core1 actual current on INT2
-	CORE0_DAT_INT2_CURRENT = 20,  	//Core1 responds Core0 actual current on INT2
-
-	CORE1_SET_INT1_OUTPUT = 21, 	//Core0 sends Core1 output state for INT1
-	CORE1_GET_INT1_OUTPUT = 22, 	//Core0 requests Core1 output state for INT1
-	CORE0_DAT_INT1_OUTPUT = 23, 	//Core1 responds Core0 output state for INT1
-
-	CORE1_SET_INT2_OUTPUT = 24,		//Core0 sends Core1 output state for INT2 
-	CORE1_GET_INT2_OUTPUT = 25, 	//Core0 requests Core1 output state for INT2
-	CORE0_DAT_INT2_OUTPUT = 26, 	//Core1 responds Core0 output state for INT2
-
-	CORE1_SET_INT1_LOCK = 27,
-	CORE1_GET_INT1_LOCK = 28,
-	CORE0_DAT_INT1_LOCK = 29,
-	CORE1_SET_INT2_LOCK = 30,
-	CORE1_GET_INT2_LOCK = 31,
-	CORE0_DAT_INT2_LOCK = 32,
-
-	CORE0_ERR_INTERFACE_LOCKED = 33
- };
-
-void intercore_send(enum intercore_command command, uint32_t value);
-bool intercore_core0_try_pop(uint32_t *message);
-void run_scpi_tcp_server(void);
-void switch_op_mode(enum op_mode newmode);
+enum wifi_led_state { WIFI_LED_OFF,WIFI_LED_CONNECTING,WIFI_LED_OK,WIFI_LED_ERROR };
+void intercore_send(enum intercore_command,uint32_t);
+bool intercore_core0_try_pop(uint32_t *);
+bool start_scpi_tcp_server(void);
+void poll_scpi_tcp_server(void);
+void scpi_handle_intercore(uint32_t message);
 #endif

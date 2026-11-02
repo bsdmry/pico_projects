@@ -168,6 +168,19 @@ static void execute_command(scpi_server_t *srv, struct tcp_pcb *pcb, char *line)
                 intercore_send(set_command(interface_number,
                                CORE1_SET_INT1_LOCK, CORE1_SET_INT2_LOCK), value);
             }
+        } else if (interface_number && command_is(suffix, "REM")) {
+            const char *argument = argument_after(suffix, "REM");
+            bool value;
+            if (*argument == '?') {
+                request_register(srv,
+                    set_command(interface_number, CORE1_GET_INT1_REMOTE, CORE1_GET_INT2_REMOTE),
+                    set_command(interface_number, CORE0_DAT_INT1_REMOTE, CORE0_DAT_INT2_REMOTE));
+            } else if (!parse_lock(argument, &value)) {
+                send_reply(pcb, "-222,\"Expected ON, OFF, 1 or 0\"\n");
+            } else {
+                intercore_send(set_command(interface_number,
+                               CORE1_SET_INT1_REMOTE, CORE1_SET_INT2_REMOTE), value);
+            }
         } else {
             send_reply(pcb, "-113,\"Undefined header\"\n");
         }
@@ -225,30 +238,36 @@ static err_t scpi_accept(void *arg, struct tcp_pcb *pcb, err_t error) {
     return ERR_OK;
 }
 
-void run_scpi_tcp_server(void) {
+bool start_scpi_tcp_server(void) {
+    if (srv.server) return true;
     struct tcp_pcb *pcb = tcp_new_ip_type(IPADDR_TYPE_ANY);
     if (!pcb || tcp_bind(pcb, IP_ANY_TYPE, TCP_PORT) != ERR_OK) {
         printf("SCPI bind failed\n");
         if (pcb) tcp_close(pcb);
-        return;
+        return false;
     }
     srv.server = tcp_listen_with_backlog(pcb, 1);
-    if (!srv.server) { tcp_close(pcb); return; }
+    if (!srv.server) { tcp_close(pcb); return false; }
     tcp_arg(srv.server, &srv);
     tcp_accept(srv.server, scpi_accept);
     printf("SCPI server listening on port %u\n", TCP_PORT);
-    for (;;) {
-        uint32_t message;
-        while (intercore_core0_try_pop(&message)) {
-            enum intercore_command command = (enum intercore_command)(message >> 24);
-            uint32_t value = message & 0x00ffffffu;
-            cyw43_arch_lwip_begin(); // Stops background network processing
-            if (srv.client && command == CORE0_ERR_INTERFACE_LOCKED) {
-                send_reply(srv.client, "-221,\"Settings conflict: interface locked\"\n");
-            } else if (srv.client && command == srv.pending_response) {
+    return true;
+}
+
+void scpi_handle_intercore(uint32_t message) {
+    enum intercore_command command = (enum intercore_command)(message >> 24);
+    uint32_t value = message & 0x00ffffffu;
+    if (!srv.server) return;
+    cyw43_arch_lwip_begin();
+    if (srv.client && command == CORE0_ERR_INTERFACE_LOCKED) {
+        send_reply(srv.client, "-221,\"Settings conflict: interface locked\"\n");
+    } else if (srv.client && command == CORE0_ERR_PSU_COMM) {
+        send_reply(srv.client, "-310,\"PSU communication error\"\n");
+    } else if (srv.client && command == srv.pending_response) {
                 char reply[32];
                 bool logical = command == CORE0_DAT_INT1_LOCK || command == CORE0_DAT_INT2_LOCK ||
-                               command == CORE0_DAT_INT1_OUTPUT || command == CORE0_DAT_INT2_OUTPUT;
+                               command == CORE0_DAT_INT1_OUTPUT || command == CORE0_DAT_INT2_OUTPUT ||
+                               command == CORE0_DAT_INT1_REMOTE || command == CORE0_DAT_INT2_REMOTE;
                 if (logical) { 
 					snprintf(reply, sizeof(reply), "%s\n", value ? "ON" : "OFF"); 
 				} else { 
@@ -256,9 +275,8 @@ void run_scpi_tcp_server(void) {
 				}
                 send_reply(srv.client, reply);
                 srv.pending_response = 0;
-            }
-            cyw43_arch_lwip_end(); // Runs background network processing
-        }
-        sleep_ms(1);
     }
+    cyw43_arch_lwip_end();
 }
+
+void poll_scpi_tcp_server(void) { /* lwIP is serviced by the background driver. */ }

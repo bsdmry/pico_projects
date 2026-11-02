@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "hardware/spi.h"
 
-#define LED14SEG_CHARACTER_COUNT 8u
+#define LED14SEG_CHARACTER_COUNT 16u
 
 static const uint16_t syms[95] = {
     0x0000, 0x1400, 0x8002, 0xe0aa, //sp, !, ", #
@@ -46,8 +46,8 @@ typedef struct {
     spi_inst_t *spi;
     uint cs_pin;
     uint16_t display_buffer[LED14SEG_CHARACTER_COUNT];
-    uint8_t dot_bitmap;
-    uint8_t blink_bitmap;
+    uint16_t dot_bitmap;
+    uint16_t blink_bitmap;
     uint8_t scan_position;
 } led14seg_display_t;
 
@@ -61,7 +61,7 @@ void led14seg_set_voltage(led14seg_display_t *display, uint16_t value);
 void led14seg_set_current(led14seg_display_t *display, uint16_t value);
 void redraw_display(led14seg_display_t *display);
 void blink_segment(led14seg_display_t *display, bool blink_on,
-                   uint8_t blink_bitmask);
+                   uint16_t blink_bitmask);
 uint8_t normalize_range(uint8_t *start_pos, uint8_t *stop_pos);
 void fill_range(led14seg_display_t *display, uint8_t start_pos, uint8_t stop_pos, uint16_t bitmap);
 void write_error_field(led14seg_display_t *display, uint8_t start_pos, uint8_t stop_pos);

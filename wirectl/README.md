@@ -7,21 +7,30 @@ Default GPIO assignment:
 
 | Function | GPIO |
 |---|---:|
-| SPI0 SCK / TX / CS | 18 / 19 / 17 |
-| SPI1 SCK / TX / CS | 10 / 11 / 13 |
+| Shared SPI SCK / TX | 18 / 19 |
+| SEG_IND1 / SEG_IND2 / LED_IND CS | 16 / 17 / 20 |
 | UART0 TX / RX | 0 / 1 |
 | UART1 TX / RX | 4 / 5 |
-| Encoder 1 A / B / button | 2 / 3 / 6 |
-| Encoder 2 A / B / button | 7 / 8 / 9 |
+| ENC_V_CH1 A / B / button | 2 / 3 / 6 |
+| ENC_V_CH2 A / B / button | 7 / 8 / 9 |
+| ENC_I_CH1 A / B / button | 10 / 11 / 12 |
+| ENC_I_CH2 A / B / button | 13 / 14 / 15 |
+| BTN_PWR_CH1 / BTN_PWR_CH2 / BTN_WIFI | 21 / 22 / 26 |
 
-Each pin can be overridden independently at compile time, for example
-`-DWIRECTL_SPI0_CS=16`. Both UARTs use 115200 baud, 8 data bits, no parity,
-and one stop bit.
+Both OpenDPS UARTs use the firmware's default 9600 baud, 8 data bits, no
+parity, and one stop bit.
 
-Encoder 1 changes interface 1's voltage limit in steps of 100. Encoder 2
-changes interface 1's current limit in steps of 100. Both limits are clamped
-to their SCPI ranges. Encoder inputs and buttons use internal pull-ups; button
-interrupt handlers are present but intentionally empty.
+The four encoders independently control voltage and current for channels 1
+and 2. Pressing an encoder enters step selection: voltage steps are 1.00,
+0.10, and 0.01 V; current steps are 0.10 and 0.01 A. The selected digit
+blinks. All encoder and front-panel buttons use internal pull-ups and close to
+ground.
+
+Core1 owns both OpenDPS links, display refresh, LED output, controls, and the
+two channel state machines. A failed PSU probe places only that channel in
+`OUT_PSU_CONN_FAULT`. A failed Wi-Fi connection disables SCPI only; local
+controls and continuous PSU polling continue to operate. `BTN_WIFI` toggles
+the Wi-Fi station at run time.
 
 Supported commands:
 
@@ -46,16 +55,19 @@ Supported commands:
 :CTL:INT2:LOCK <ON|OFF|1|0>
 :CTL:INT1:LOCK?
 :CTL:INT2:LOCK?
+:CTL:INT1:REM <ON|OFF|1|0>
+:CTL:INT2:REM <ON|OFF|1|0>
+:CTL:INT1:REM?
+:CTL:INT2:REM?
 ```
 
-The voltage scale is displayed as hundredths of a volt, so `2000` appears as
-`20.00 V`. A successful write has no TCP response, following normal SCPI
+Voltage and current SCPI values use OpenDPS units: millivolts and milliamps.
+A successful write has no TCP response, following normal SCPI
 command behavior. Invalid or locked writes return a SCPI-style error line.
 
-Core1 retains a segment buffer and decimal-point bitmap for each display. It
-continuously feeds one digit from each buffer every 500 microseconds, giving
-every multiplexed digit a 250 Hz refresh rate. SCPI writes only update these
-buffers; display scanning continues independently of network activity.
+Each segment display contains two daisy-chained eight-character boards. Core1
+retains a 16-character buffer for each display and continuously scans it, so
+display refresh continues independently of network activity.
 
 Core1 owns the volatile SCPI register bank. Core0 validates incoming values
 and sends `CORE1_SET_*` messages without retaining copies. Register queries

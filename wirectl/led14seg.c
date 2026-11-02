@@ -49,13 +49,18 @@ void write_error_field(led14seg_display_t *display, uint8_t start_pos, uint8_t s
 }
 
 static void send_char(spi_inst_t *spi, uint cs, uint16_t segments, bool dot, uint8_t position) {
+    uint8_t blank[4] = {0xff,0xff,0xff,0};
     uint8_t bytes[4] = {
 		(uint8_t)((dot ? 1u : 0u) ^ 0xffu), 	//byte 0 - dot segment, 	  	with inversion
         (uint8_t)((segments & 0xffu) ^ 0xffu),  //byte 1 - symbol, low byte,	with inversion
 		(uint8_t)((segments >> 8) ^ 0xffu), 	//byte 2 - symbol, high byte,	with inversion
-		position};								//byte 3 - position				without inversion
+		(uint8_t)(0x80u >> (position & 7u))};
     gpio_put(cs, 0);
-	spi_write_blocking(spi, bytes, 4); 
+	/* Two daisy-chained eight-character boards. The bytes shifted first
+	 * reach the far board. Keep its position mask zero while updating the
+	 * near board, and conversely. */
+	if (position < 8u) { spi_write_blocking(spi, blank, 4); spi_write_blocking(spi, bytes, 4); }
+	else { bytes[3] = (uint8_t)(0x80u >> (position - 8u)); spi_write_blocking(spi, bytes, 4); spi_write_blocking(spi, blank, 4); }
 	gpio_put(cs, 1);
 }
 
@@ -84,7 +89,6 @@ void led14seg_set_current(led14seg_display_t *display, uint16_t value) {
 }
 
 void redraw_display(led14seg_display_t *display){
-	uint8_t pos = 0x80;
 	bool phase = blink_flag;
     for (uint8_t s = 0; s < LED14SEG_CHARACTER_COUNT; s++){
 		bool blink_enabled = ((display->blink_bitmap >> s) & 0x1u) != 0u;
@@ -92,7 +96,7 @@ void redraw_display(led14seg_display_t *display){
      send_char(display->spi, display->cs_pin,
 			show_symbol ? display->display_buffer[s] : SPACE_SYM,
 			show_symbol && (((display->dot_bitmap >> s) & 0x1u) != 0u),
-			pos >> s);
+			s);
     }
 }
 
@@ -106,14 +110,14 @@ void redraw_display(led14seg_display_t *display){
   @param[in] blink_on bool blink Is bitmask represents enable blinking or disable
   @param[in] blink_bitmask uint8_t modification bitmask  
 */
-void blink_segment(led14seg_display_t *display, bool blink_on, uint8_t blink_bitmask){
+void blink_segment(led14seg_display_t *display, bool blink_on, uint16_t blink_bitmask){
 	if (display == NULL) {
 		return;
 	}
 	if (blink_on) {
 		display->blink_bitmap |= blink_bitmask;
 	} else {
-		display->blink_bitmap &= (uint8_t)~blink_bitmask;
+		display->blink_bitmap &= (uint16_t)~blink_bitmask;
 	}
 }
 
@@ -192,7 +196,7 @@ void blink_segment(led14seg_display_t *display, bool blink_on, uint8_t blink_bit
   
       /* Remove stale decimal points from the complete destination field. */
       for (i = start_pos; i <= stop_pos; ++i) {
-          display->dot_bitmap &= (uint8_t)~(1U << i);
+          display->dot_bitmap &= (uint16_t)~(1U << i);
       }
     if ((int_size == 0U) || (required > width) || (required < int_size)) {
           write_error_field(display, start_pos, stop_pos);
@@ -265,7 +269,7 @@ void blink_segment(led14seg_display_t *display, bool blink_on, uint8_t blink_bit
       if (frac_size != 0U) {
           display->dot_bitmap |= (uint8_t)(1U << dot_pos);
       } else {
-          display->dot_bitmap &= (uint8_t)~(1U << dot_pos);
+          display->dot_bitmap &= (uint16_t)~(1U << dot_pos);
       }
   
       divisor = scale / 10U;

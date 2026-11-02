@@ -94,7 +94,14 @@ def verify(client: ScpiClient, int1_voltage: int, int2_voltage: int) -> None:
         check(client.query(f":CTL:INT{interface}:LOCK?") == "OFF",
               f"interface {interface} final unlock")
 
-    client.write(":CTL:INT1:VOLT 2001")
+        client.write(f":CTL:INT{interface}:REM ON")
+        check(client.query(f":CTL:INT{interface}:REM?") == "ON",
+              f"interface {interface} remote LED on")
+        client.write(f":CTL:INT{interface}:REM OFF")
+        check(client.query(f":CTL:INT{interface}:REM?") == "OFF",
+              f"interface {interface} remote LED off")
+
+    client.write(":CTL:INT1:VOLT 60001")
     check(client.read_response().startswith("-222,"), "out-of-range voltage rejected")
 
 
@@ -102,16 +109,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("host", help="Pico W IP address or hostname")
     parser.add_argument("--port", type=int, default=5025, help="SCPI TCP port (default: 5025)")
-    parser.add_argument("--autotest", type=bool, default=False, help="Run autotest (default: False)")
-    parser.add_argument("--setv1", type=bool, default=False, help="Set V1, using int1-volatage (default: False)")
-    parser.add_argument("--getv1", type=bool, default=False, help="Get V1,  (default: False)")
-    parser.add_argument("--setv2", type=bool, default=False, help="Set V2, using int2-volatage (default: False)")
-    parser.add_argument("--getv2", type=bool, default=False, help="Get V2,  (default: False)")
+    parser.add_argument("--autotest", action="store_true", help="Run autotest")
+    parser.add_argument("--setv1", action="store_true", help="Set V1 using --int1-voltage")
+    parser.add_argument("--getv1", action="store_true", help="Get V1")
+    parser.add_argument("--setv2", action="store_true", help="Set V2 using --int2-voltage")
+    parser.add_argument("--getv2", action="store_true", help="Get V2")
     parser.add_argument("--timeout", type=float, default=3.0, help="socket timeout in seconds")
     parser.add_argument("--int1-voltage", type=int, default=1234,
-                        choices=range(1, 2001), metavar="1..2000")
+                        choices=range(0, 60001), metavar="0..60000")
     parser.add_argument("--int2-voltage", type=int, default=567,
-                        choices=range(1, 2001), metavar="1..2000")
+                        choices=range(0, 60001), metavar="0..60000")
     return parser.parse_args()
 
 

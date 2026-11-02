@@ -17,6 +17,7 @@ add_executable(wirectl
     wirectl.c
     scpi_tcp_srv.c
     led14seg.c
+    opendps.c
 )
 
 target_link_libraries(wirectl PRIVATE
