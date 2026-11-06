@@ -7,10 +7,12 @@ import socket
 import sys
 import time
 
+# IC3 H..A are bits 15..8, IC4 H..A are bits 7..0.
+# Firmware normalizes active-low inputs so a set bit means the LED is on.
 LED_NAMES = (
-    (0, 'Ohm'), (1, 'MOhm'), (2, 'V'), (3, 'A'), (4, 'kOhm'),
-    (5, 'mV'), (6, 'mA'), (7, 'R'), (9, 'NEG'), (10, 'HOLD'),
-    (11, 'DIODE'), (12, 'DC'), (13, 'AC'), (14, 'Freq/kHz'), (15, 'hFE'),
+    (15, 'Ohm'), (14, 'MOhm'), (13, 'V'), (12, 'A'), (11, 'kOhm'),
+    (10, 'mV'), (9, 'mA'), (8, 'R'), (6, 'NEG'), (5, 'HOLD'),
+    (4, 'DIODE'), (3, 'DC'), (2, 'AC'), (1, 'Freq/kHz'), (0, 'hFE'),
 )
 
 
@@ -70,8 +72,17 @@ class Meter:
             raise ValueError('invalid status response: ' + repr(response))
         return decode_status(int(response))
 
+    def read_raw(self):
+        response = self.query('RAW?')
+        if not response or any(ch not in '0123456789' for ch in response):
+            raise ValueError('invalid RAW? response: ' + repr(response))
+        raw = int(response)
+        if not 0 <= raw < (1 << 32):
+            raise ValueError('raw data is outside the unsigned 32-bit range')
+        return raw
 
-def render(name, reading):
+
+def render(name, reading, raw=None):
     flags = []
     if reading.underrange:
         flags.append('UNDERRANGE')
@@ -82,8 +93,12 @@ def render(name, reading):
     for start in range(0, len(LED_NAMES), 5):
         lines.append('  '.join(f'{label:8} {"ON " if reading.leds & (1 << bit) else "off"}'
                                for bit, label in LED_NAMES[start:start + 5]))
-    lines += ['', f'Status: {reading.status}  (0x{reading.status:016X})',
-              'Saved samples; firmware does not report age or validity.']
+    lines += ['', f'SPI1 LED bits (15–0, 1=on): {reading.leds:016b}']
+    if raw is not None:
+        lines += ['', f'SPI0 raw (15–0): {(raw >> 16):016b}',
+                  f'SPI1 raw (15–0): {(raw & 0xffff):016b}',
+                  f'BCD bits (BCD_4..BCD_1): {((raw >> 25) & 0xf):04b}']
+    lines += ['', f'Status: {reading.status}  (0x{reading.status:016X})']
     return '\n'.join(lines)
 
 
@@ -120,11 +135,12 @@ def main(argv=None):
             raise ValueError('unexpected device identity: ' + repr(name))
         while True:
             reading = meter.read()
+            raw = meter.read_raw()
             if interactive:
                 print('\033[2J\033[H', end='')
             else:
                 print(time.strftime('%Y-%m-%d %H:%M:%S'))
-            print(render(name, reading), flush=True)
+            print(render(name, reading, raw), flush=True)
             if args.once:
                 return 0
             if interactive:

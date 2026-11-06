@@ -46,6 +46,11 @@ static bool execute(struct tcp_pcb *pcb) {
         snprintf(buffer, sizeof(buffer), "%" PRIu64 "\n", dm_status());
         return reply(pcb, buffer);
     }
+    if (!strcasecmp(s, "RAW?")) {
+        char buffer[16];
+        snprintf(buffer, sizeof(buffer), "%" PRIu32 "\n", dm_raw());
+        return reply(pcb, buffer);
+    }
     if (!strcasecmp(s, "*OPC?")) return reply(pcb, "1\n");
     return reply(pcb, "-113,\"Undefined header\"\n");
 }
@@ -56,6 +61,13 @@ static void detach(struct tcp_pcb *pcb) {
     tcp_poll(pcb, NULL, 0);
     tcp_err(pcb, NULL);
     memset(&srv, 0, sizeof(srv));
+}
+/* Core0 calls this outside lwIP callbacks when the network is lost. */
+void scpi_disconnect(void) {
+    if (!srv.client) return;
+    struct tcp_pcb *pcb = srv.client;
+    detach(pcb);
+    tcp_abort(pcb);
 }
 static err_t receive(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t error) {
     (void)arg;

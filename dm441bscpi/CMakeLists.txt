@@ -24,6 +24,7 @@ target_link_libraries(dm441bscpi PRIVATE
     pico_stdlib
     pico_multicore
     hardware_spi
+    hardware_timer
     pico_cyw43_arch_lwip_poll
 )
 
