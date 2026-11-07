@@ -19,7 +19,7 @@ build uses placeholder credentials `build-test`; configure real credentials
 before flashing. Credentials are compiled into the image and CMake cache.
 USB stdio is enabled; UART stdio is disabled.
 
-## Protocol
+## SCPI TCP Protocol
 
 One TCP client at a time. Commands are case insensitive; an optional leading
 colon is accepted. CR, LF and semicolon terminate commands. Responses end in LF.
@@ -58,22 +58,57 @@ blank/error glyphs retain the previous valid reading; verify actual meter
 behavior during range transitions and overload before relying on those states.
 
 SPI1 LED bit positions in the corrected physical MSB-first layout:
-15 Ohm, 14 MOhm, 13 V, 12 A, 11 kOhm, 10 mV, 9 mA, 8 R,
-7 unused, 6 negative, 5 HOLD, 4 diode, 3 DC, 2 AC, 1 Freq/kHz, 0 hFE.
+
+| Bit | Connection |
+| --- | --- |
+| 15 | Ohm | 
+| 14 | MOhm |
+| 13 | V |
+| 12 | A | 
+| 11 | kOhm | 
+| 10 | mV | 
+| 9 | mA |  
+| 8 | R |
+| 7 | unused | 
+| 6 | negative | 
+| 5 | HOLD | 
+| 4 | diode | 
+| 3 | DC | 
+| 2 | AC | 
+| 1 | Freq/kHz | 
+| 0 | hFE |
+
 Bits 15–9 and 6 are inverted from the physical inputs. Bit 7 is masked out.
 
 IC1 QH connects to SPI0 MISO and IC3 QH connects to SPI1 MISO.
 Each chain sends the nearest IC's H through A first, then the upstream IC's
 H through A. With MSB-first SPI, those samples occupy bits 15 through 0.
-The corrected SPI0 layout is DIGIT_1 at bit 0, DIGIT_2 at bit 15, DIGIT_3 at
-bit 14, DIGIT_4 at bit 13, DIGIT_5 at bit 8, BCD_1 through BCD_4 at bits
-9 through 12, UNDER at bit 6, OVER at bit 5, and DP_1 through DP_4 at bits
-4 through 1. Decimal-point inputs are active low, as confirmed by live SPI0
-captures. UNDER and OVER remain active high. See connctions.txt for the full
+The corrected SPI0 layout is:
+ 
+| Bit | Connection |
+| --- | --- |
+| 15 | DIGIT_2 | 
+| 14 | DIGIT_3 |
+| 13 | DIGIT_4 |
+| 12 | BCD_4 | 
+| 11 | BCD_3 | 
+| 10 | BCD_2 | 
+| 9 | BCD_1 |  
+| 8 | DIGIT_8 |
+| 7 | unused | 
+| 6 | UNDER | 
+| 5 | OVER | 
+| 4 | DP_1 | 
+| 3 | DP_2 | 
+| 2 | DP_3 | 
+| 1 | DP_4 | 
+| 0 | DIGIT_1 |
+
+Decimal-point inputs are active low, as confirmed by live SPI0
+captures. UNDER and OVER remain active high. See schematics.jpg for the full
 physical pin map.
 
-Update the firmware and monitor together. The corrected low 16 status bits
-use the physical positions above. The monitor's binary line shows normalized
+The corrected low 16 status bits use the physical positions above. The monitor's binary line shows normalized
 LED states (1 = on) from bit 15 on the left through bit 0 on the right.
 
 Example host decoding:
@@ -96,8 +131,7 @@ with socket.create_connection(('meter-ip', 5025), timeout=3) as sock:
 
 ## Electrical and timing assumptions to verify on hardware
 
-Use the pins and chain bit ordering in connctions.txt. GPIO5/GPIO9 are software
-load controls connected to both registers' active-low shift/load inputs, not
+GPIO5/GPIO9 are software load controls connected to both registers' active-low shift/load inputs, not
 ordinary SPI chip selects. Clock inhibit must be low and clear high externally.
 The 74HC166 loads synchronously on a rising clock with load low, so the firmware
 generates a separate load clock before each 16-bit SPI mode-0, MSB-first read.
@@ -117,20 +151,6 @@ Confirm midpoint timing and the 2 ms/10 ms periods with a logic analyzer.
 The SPI1 read can be interrupted by the display timer. A mutex protects the
 64-bit published snapshot, and LED publication is serialized with timer
 publication on Core1.
-
-No hardware or live Wi-Fi/TCP validation has been performed. Verify DIGIT_1
-least-significant position, BCD_1 least-significant weighting, polarity, overload glyphs and
-all decimal positions against the actual display.
-
-## Host decoder tests
-
-```
-cc -std=c11 -Wall -Wextra -Werror -I . tests/test_decoder.c display_decoder.c -o /tmp/dm441b-test
-/tmp/dm441b-test
-```
-
-Tests cover five-digit magnitudes, all decimal positions, range flags, LED
-polarity, incomplete/repeated/timed-out scans and invalid selection/BCD patterns.
 
 ## Python terminal monitor
 
@@ -166,26 +186,6 @@ monitor after connectivity returns. Core1 acquisition continues independently.
 Wi-Fi events and join errors are logged to USB stdio. This watches the local
 Wi-Fi/IP link, not Internet reachability.
 
-The watchdog was tested with simulated time/link states (initial failure,
-repeated retries, connection loss/recovery, pending DHCP, and immediate join
-errors); actual access-point outage/recovery testing still requires hardware.
-
-```
-cc -std=c11 -Wall -Wextra -Werror -DWIFI_SSID='"test"' -DWIFI_PASSWORD='"test"' -I tests/wifi_watchdog tests/wifi_watchdog/test.c -o /tmp/dm441b-wifi-test
-/tmp/dm441b-wifi-test
-```
-
-## Timer acquisition regression test
-
-The mocked acquisition test checks rising-edge synchronization on GPIO12,
-five reads at 1/3/5/7/9 ms, digit identification from captured bits, phase
-resynchronization, incomplete-frame handling, and missed-deadline rejection.
-
-```
-cc -std=c11 -Wall -Wextra -Werror -I tests/acquisition_timer tests/acquisition_timer/test.c display_decoder.c -o /tmp/dm441b-timer-test
-/tmp/dm441b-timer-test
-```
-
 ## Raw SPI diagnostics and sampling LED output
 
 `RAW?` returns `(spi0_word << 16) | spi1_word` as unsigned decimal text.
@@ -202,22 +202,3 @@ plus the combined value in decimal and hexadecimal. The normalized LED
 binary line continues to use 1 for LED on. The status and raw queries may
 observe different sampling instants. Install the updated firmware to use
 the monitor's new raw query.
-
-GPIO13 is the sampling LED/logic-analyzer output. It starts low and toggles
-at the start of every actual SPI0 load/read, immediately before asserting the
-74HC166 load control. Skipped samples and SPI1 reads do not toggle it. Connect
-an external LED with a series resistor or a logic-analyzer probe to GPIO13.
-The pin is defined as `DM_SAMPLE_LED_GPIO` in dm441bscpi.h. The Pico W onboard
-LED is connected to the wireless chip, so this timing output uses GPIO13.
-
-Firmware compilation and mocked acquisition/monitor tests pass, including
-raw packing, preservation of undecodable samples, GPIO13 toggles, binary
-formatting and fragmented raw TCP replies. Hardware timing remains to be
-verified on the meter.
-
-Live diagnosis at 192.168.0.190 found that valid scans were rejected because
-DP_1..DP_4 had physical levels 1101, which the old decoder interpreted as
-three active decimal points. The decimal pins are now inverted before scan
-assembly. DIGIT_1 is treated as the rightmost digit, and DP_n indicates n
-fractional digits. Captured words 019A, 0A9B, 829A, 409A, 209A therefore decode
-to 0.015. A regression test uses those exact raw words.
