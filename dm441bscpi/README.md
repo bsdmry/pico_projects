@@ -3,6 +3,8 @@
 ![description](docs/DM-441B_display.jpg)
 ![description](docs/dm_441b_gui.png)
 
+## Software: Raspberry Pico W SCPI interface board
+
 Pico W firmware. Core0 runs Wi-Fi and a small SCPI command server on TCP 5025.
 Core1 owns both SPI peripherals. DIGIT_5 is connected to GPIO12. Its rising
 edge synchronizes a Core1 hardware timer that samples SPI0 at 1, 3, 5, 7 and
@@ -22,7 +24,7 @@ build uses placeholder credentials `build-test`; configure real credentials
 before flashing. Credentials are compiled into the image and CMake cache.
 USB stdio is enabled; UART stdio is disabled.
 
-## SCPI TCP Protocol
+## SCPI TCP Protocol description
 
 One TCP client at a time. Commands are case insensitive; an optional leading
 colon is accepted. CR, LF and semicolon terminate commands. Responses end in LF.
@@ -59,6 +61,8 @@ one occurrence of each position, not a hardware-synchronized ADC conversion.
 UNDER/OVER and decimal signals are accumulated across that scan. Non-BCD
 blank/error glyphs retain the previous valid reading; verify actual meter
 behavior during range transitions and overload before relying on those states.
+
+### 74HC166 bit interpretation
 
 SPI1 LED bit positions in the corrected physical MSB-first layout:
 
@@ -165,6 +169,36 @@ binary line continues to use 1 for LED on. The status and raw queries may
 observe different sampling instants. Install the updated firmware to use
 the monitor's new raw query.
 
+## Software: Python terminal monitor
+
+### Screenshot
+
+![description](docs/scpi_read_script_output.png)
+
+### Description
+
+`dm441b_monitor.py` uses only the Python 3 standard library. It displays the
+reading with the display's decimal position, range flags, every LED as ON/off,
+and the raw unsigned 64-bit status. On a terminal it refreshes in place; when
+redirected it emits timestamped snapshots. Ctrl+C exits. Connection/protocol
+errors exit with a diagnostic; rerun to reconnect.
+
+```
+python3 dm441b_monitor.py 192.168.1.100
+python3 dm441b_monitor.py 192.168.1.100 --interval 1 --once
+```
+
+Replace the example IP with your meter's address. The default port is 5025 and
+socket timeout is 3 seconds; override with `--port` and `--timeout`. The monitor
+shows the firmware's last saved samples, which may be stale or uninitialized.
+DP_4 and no decimal point share encoding zero in the current firmware ABI.
+
+## Software: Tkinter-based Python GUI client
+
+Run `dm441b_gui.py`
+
+![description](docs/dm_441b_gui.png)
+
 
 ## Hardware
 
@@ -202,33 +236,3 @@ Confirm midpoint timing and the 2 ms/10 ms periods with a logic analyzer.
 The SPI1 read can be interrupted by the display timer. A mutex protects the
 64-bit published snapshot, and LED publication is serialized with timer
 publication on Core1.
-
-## Python terminal monitor
-
-### Screenshot
-
-![description](docs/scpi_read_script_output.png)
-
-### Description
-
-`dm441b_monitor.py` uses only the Python 3 standard library. It displays the
-reading with the display's decimal position, range flags, every LED as ON/off,
-and the raw unsigned 64-bit status. On a terminal it refreshes in place; when
-redirected it emits timestamped snapshots. Ctrl+C exits. Connection/protocol
-errors exit with a diagnostic; rerun to reconnect.
-
-```
-python3 dm441b_monitor.py 192.168.1.100
-python3 dm441b_monitor.py 192.168.1.100 --interval 1 --once
-```
-
-Replace the example IP with your meter's address. The default port is 5025 and
-socket timeout is 3 seconds; override with `--port` and `--timeout`. The monitor
-shows the firmware's last saved samples, which may be stale or uninitialized.
-DP_4 and no decimal point share encoding zero in the current firmware ABI.
-
-## Tkinter-based Python GUI client
-
-Run `dm441b_gui.py`
-
-![description](docs/dm_441b_gui.png)
