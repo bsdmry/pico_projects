@@ -1,5 +1,8 @@
 # EZ DM-441B wireless display interface
 
+![description](docs/DM-441B_display.jpg)
+![description](docs/dm_441b_gui.png)
+
 Pico W firmware. Core0 runs Wi-Fi and a small SCPI command server on TCP 5025.
 Core1 owns both SPI peripherals. DIGIT_5 is connected to GPIO12. Its rising
 edge synchronizes a Core1 hardware timer that samples SPI0 at 1, 3, 5, 7 and
@@ -41,7 +44,7 @@ multi-point selections do not replace the saved display.
 
 | Bits | Meaning |
 | --- | --- |
-| 0–15 | LED states in the exact SPI1 positions from connctions.txt; normalized so 1 means lit; bit 7 is zero |
+| 0–15 | LED states in the exact SPI1 positions; normalized so 1 means lit; bit 7 is zero |
 | 16–58 | Unsigned decimal magnitude (DIGIT_5 is most significant, DIGIT_1 least significant) |
 | 59 | Overrange |
 | 60 | Underrange |
@@ -129,47 +132,6 @@ with socket.create_connection(('meter-ip', 5025), timeout=3) as sock:
     print(value, hex(status & 0xffff))
 ```
 
-## Electrical and timing assumptions to verify on hardware
-
-GPIO5/GPIO9 are software load controls connected to both registers' active-low shift/load inputs, not
-ordinary SPI chip selects. Clock inhibit must be low and clear high externally.
-The 74HC166 loads synchronously on a rising clock with load low, so the firmware
-generates a separate load clock before each 16-bit SPI mode-0, MSB-first read.
-See the [TI SN74HC166 datasheet](https://www.ti.com/lit/ds/symlink/sn74hc166.pdf).
-
-SPI clock is 1 MHz. GPIO12 must receive active-high DIGIT_5 with a 2 ms
-high interval once per 10 ms scan. The rising-edge handler clears incomplete
-assembly and schedules the first SPI0 load for 1 ms later. Four more reads
-follow at absolute 2 ms intervals, keeping transaction duration out of the
-sampling period. The timer then stops until the next DIGIT_5 edge. Every edge
-reanchors sampling to the display, preventing cumulative phase drift.
-
-The timer IRQ runs on Core1. It loads the parallel inputs near the midpoint
-and shifts the captured word. If a deadline cannot be armed or the callback
-arrives at least 1 ms late, the scan is discarded until the next sync edge.
-Confirm midpoint timing and the 2 ms/10 ms periods with a logic analyzer.
-The SPI1 read can be interrupted by the display timer. A mutex protects the
-64-bit published snapshot, and LED publication is serialized with timer
-publication on Core1.
-
-## Python terminal monitor
-
-`dm441b_monitor.py` uses only the Python 3 standard library. It displays the
-reading with the display's decimal position, range flags, every LED as ON/off,
-and the raw unsigned 64-bit status. On a terminal it refreshes in place; when
-redirected it emits timestamped snapshots. Ctrl+C exits. Connection/protocol
-errors exit with a diagnostic; rerun to reconnect.
-
-```
-python3 dm441b_monitor.py 192.168.1.100
-python3 dm441b_monitor.py 192.168.1.100 --interval 1 --once
-```
-
-Replace the example IP with your meter's address. The default port is 5025 and
-socket timeout is 3 seconds; override with `--port` and `--timeout`. The monitor
-shows the firmware's last saved samples, which may be stale or uninitialized.
-DP_4 and no decimal point share encoding zero in the current firmware ABI.
-
 ## Wi-Fi connection watchdog
 
 Core0 starts an asynchronous join at boot and polls the IP link status in its
@@ -202,3 +164,71 @@ plus the combined value in decimal and hexadecimal. The normalized LED
 binary line continues to use 1 for LED on. The status and raw queries may
 observe different sampling instants. Install the updated firmware to use
 the monitor's new raw query.
+
+
+## Hardware
+
+### DM-441B hardware modifications
+
+Just solder wires to marked points on the main board, and the indicator board.
+
+![description](docs/main_board_points.jpg)
+
+![description](docs/front_board_points.jpg)
+
+### Schematic
+
+![description](docs/schematic.jpg)
+
+### HW description
+
+GPIO5/GPIO9 are software load controls connected to both registers' active-low shift/load inputs, not
+ordinary SPI chip selects. Clock inhibit must be low and clear high externally.
+The 74HC166 loads synchronously on a rising clock with load low, so the firmware
+generates a separate load clock before each 16-bit SPI mode-0, MSB-first read.
+See the [TI SN74HC166 datasheet](https://www.ti.com/lit/ds/symlink/sn74hc166.pdf).
+
+SPI clock is 1 MHz. GPIO12 must receive active-high DIGIT_5 with a 2 ms
+high interval once per 10 ms scan. The rising-edge handler clears incomplete
+assembly and schedules the first SPI0 load for 1 ms later. Four more reads
+follow at absolute 2 ms intervals, keeping transaction duration out of the
+sampling period. The timer then stops until the next DIGIT_5 edge. Every edge
+reanchors sampling to the display, preventing cumulative phase drift.
+
+The timer IRQ runs on Core1. It loads the parallel inputs near the midpoint
+and shifts the captured word. If a deadline cannot be armed or the callback
+arrives at least 1 ms late, the scan is discarded until the next sync edge.
+Confirm midpoint timing and the 2 ms/10 ms periods with a logic analyzer.
+The SPI1 read can be interrupted by the display timer. A mutex protects the
+64-bit published snapshot, and LED publication is serialized with timer
+publication on Core1.
+
+## Python terminal monitor
+
+### Screenshot
+
+![description](docs/scpi_read_script_output.png)
+
+### Description
+
+`dm441b_monitor.py` uses only the Python 3 standard library. It displays the
+reading with the display's decimal position, range flags, every LED as ON/off,
+and the raw unsigned 64-bit status. On a terminal it refreshes in place; when
+redirected it emits timestamped snapshots. Ctrl+C exits. Connection/protocol
+errors exit with a diagnostic; rerun to reconnect.
+
+```
+python3 dm441b_monitor.py 192.168.1.100
+python3 dm441b_monitor.py 192.168.1.100 --interval 1 --once
+```
+
+Replace the example IP with your meter's address. The default port is 5025 and
+socket timeout is 3 seconds; override with `--port` and `--timeout`. The monitor
+shows the firmware's last saved samples, which may be stale or uninitialized.
+DP_4 and no decimal point share encoding zero in the current firmware ABI.
+
+## Tkinter-based Python GUI client
+
+Run `dm441b_gui.py`
+
+![description](docs/dm_441b_gui.png)
